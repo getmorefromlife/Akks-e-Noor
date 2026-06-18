@@ -1,15 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Toaster, toast } from "sonner";
 import { ArrowLeft, Trash2, Upload } from "lucide-react";
 import {
   usePosters, THEMES, CALENDAR_MONTHS, ISLAMIC_MONTHS, MASOOMEEN, OCCASIONS,
+  sortPosters, type SortOrder
 } from "@/lib/posters";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin — Mahfil" },
+      { title: "Admin — Akks-e-Noor" },
       { name: "description", content: "Upload and manage poster archive entries." },
     ],
   }),
@@ -63,9 +64,51 @@ function CheckGroup({
   );
 }
 
+async function sha256(str: string) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const DEFAULT_HASH = "8df24958e761884bd34fa2a0df830b14bf81bd04b48fda4350b4a54e9d02e138"; // default: Square786++
+const HASH = (import.meta.env.VITE_ADMIN_PASSWORD_HASH) || DEFAULT_HASH;
+
 function Admin() {
   const { posters, add, remove } = usePosters();
   const [form, setForm] = useState<Form>(empty);
+  const [password, setPassword] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("akks_e_noor_admin_auth") === "true";
+  });
+  const [sortOrder, setSortOrder] = useState<SortOrder>("hijri-asc");
+
+  const sortedPosters = useMemo(() => sortPosters(posters, sortOrder), [posters, sortOrder]);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const hash = await sha256(password);
+    if (hash === HASH) {
+      sessionStorage.setItem("akks_e_noor_admin_auth", "true");
+      setIsAuthenticated(true);
+      toast.success("Authenticated successfully");
+    } else {
+      toast.error("Incorrect password");
+    }
+  };
+
+  const handleExport = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(posters, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", "posters.json");
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    toast.success("Archive exported as posters.json");
+  };
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
@@ -81,8 +124,49 @@ function Admin() {
     }
     add(form);
     setForm(empty);
-    toast.success("Poster added to the archive");
+    toast.success("Poster added to local session");
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col justify-center items-center px-6">
+        <Toaster position="bottom-center" />
+        <div className="w-full max-w-md space-y-8 text-center animate-in fade-in duration-300">
+          <div>
+            <Link to="/" className="font-serif text-3xl tracking-tight">
+              Akks-e-Noor<span className="text-accent">.</span>
+            </Link>
+            <h2 className="mt-6 font-serif text-2xl tracking-tight text-foreground">
+              Admin Portal
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Enter the password to access poster archive settings.
+            </p>
+          </div>
+          <form onSubmit={handlePasswordSubmit} className="mt-8 space-y-4">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+              className="w-full rounded-full border border-border bg-secondary/40 px-5 py-3 text-center text-sm outline-none transition-all focus:border-foreground focus:bg-background"
+            />
+            <button
+              type="submit"
+              className="w-full rounded-full bg-foreground px-5 py-3 text-sm uppercase tracking-widest text-background transition-transform hover:scale-[1.02]"
+            >
+              Sign In
+            </button>
+          </form>
+          <div className="pt-4">
+            <Link to="/" className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              Back to Gallery
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -92,7 +176,18 @@ function Admin() {
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Back to gallery
           </Link>
-          <span className="font-serif text-xl">Admin</span>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                sessionStorage.removeItem("akks_e_noor_admin_auth");
+                setIsAuthenticated(false);
+              }}
+              className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            >
+              Log Out
+            </button>
+            <span className="font-serif text-xl border-l pl-4 border-border">Admin</span>
+          </div>
         </div>
       </header>
 
@@ -193,14 +288,55 @@ function Admin() {
         </form>
 
         <section className="mt-20">
-          <h2 className="font-serif text-3xl">Archive ({posters.length})</h2>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="font-serif text-3xl">Archive ({posters.length})</h2>
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Rearrange controls in admin */}
+              <div className="flex items-center gap-1 rounded-full border border-border bg-secondary/20 p-1">
+                <button
+                  onClick={() => setSortOrder("hijri-asc")}
+                  title="Sort from Day 1 to Day 30"
+                  className={`rounded-full px-3 py-1.5 text-xs transition-all ${
+                    sortOrder === "hijri-asc" ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  1 → 30
+                </button>
+                <button
+                  onClick={() => setSortOrder("hijri-desc")}
+                  title="Sort from Day 30 to Day 1"
+                  className={`rounded-full px-3 py-1.5 text-xs transition-all ${
+                    sortOrder === "hijri-desc" ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  30 → 1
+                </button>
+                <button
+                  onClick={() => setSortOrder("date-desc")}
+                  title="Show newest uploads first"
+                  className={`rounded-full px-3 py-1.5 text-xs transition-all ${
+                    sortOrder === "date-desc" ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Newest
+                </button>
+              </div>
+
+              <button
+                onClick={handleExport}
+                className="rounded-full border border-foreground/85 px-4 py-2 text-xs uppercase tracking-widest hover:bg-foreground hover:text-background transition-colors"
+              >
+                Export Archive (JSON)
+              </button>
+            </div>
+          </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {posters.map((p) => (
-              <div key={p.id} className="flex gap-4 rounded-lg border border-border bg-secondary/30 p-3">
+            {sortedPosters.map((p) => (
+              <div key={p.id} className="flex gap-4 rounded-lg border border-border bg-secondary/30 p-3 animate-in fade-in duration-200">
                 <img src={p.imageUrl} alt={p.title} className="h-20 w-20 flex-none rounded object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-serif text-lg">{p.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">{p.hijriDate}</p>
+                  <p className="truncate text-xs text-muted-foreground">{p.hijriDate || p.englishDate}</p>
                   <button
                     onClick={() => { remove(p.id); toast.success("Removed"); }}
                     className="mt-2 inline-flex items-center gap-1 text-xs text-destructive hover:underline"

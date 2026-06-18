@@ -32,8 +32,13 @@
   --color-sand: var(--sand);
   --color-clay: var(--clay);
   --color-ink: var(--ink);
-  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
-  --font-sans: "Karla", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-jameel: "JameelNooriNastaliq", "Jameel Noori Nastaleeq", serif;
+  --font-faiz: "Faiz-Nastaliq", "Faiz Lahori Nastaleeq", serif;
+  --font-noto: "Noto Nastaliq Urdu", serif;
+  --font-mehr: "Mehr", serif;
+  --font-nastaliq: "JameelNooriNastaliq", "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", serif;
   --shadow-soft: 0 1px 2px oklch(0.3 0.03 60 / 0.06), 0 8px 24px oklch(0.3 0.03 60 / 0.08);
   --shadow-lift: 0 2px 4px oklch(0.3 0.03 60 / 0.08), 0 20px 50px oklch(0.3 0.03 60 / 0.14);
 }
@@ -77,5 +82,6 @@
   h1, h2, h3, h4, h5, .font-serif {
     font-family: var(--font-serif);
     letter-spacing: -0.01em;
+    font-weight: 700;
   }
 }
